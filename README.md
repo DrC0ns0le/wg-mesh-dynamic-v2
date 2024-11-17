@@ -1,131 +1,203 @@
-# WireGuard Mesh Configuration Generator V2
+# WireGuard Mesh Configuration Generator
 
-Wireguard Mesh Configuration Generator for Dynamic Routing
+A Python-based tool for generating WireGuard mesh network configurations with support for dynamic routing. Unlike traditional WireGuard mesh setups, this tool creates separate interfaces for each peer, enabling advanced routing capabilities and enhanced network resilience.
 
-This is a simple project aims to simplify the setup of WireGuard mesh site-to-site connections by generating configuration files. Unlike similar projects, it creates separate interfaces for each peer instead of combining them into a single interface.
+## Key Differentiators
 
-This approach is necessary due to WireGuard's limitation of only routing traffic defined within AllowedIPs without allowing overlaps. This meant that multiple routes to the same subnet is not possible. By employing separate interfaces, this allows for overlapping network routes, and lets the routing decision to be made at the OS level. Another advantages is that if the interface needs to be taken down or restarted for whatever reason, the connection to other sites are not affected.
+- **Separate Interfaces**: Creates individual WireGuard interfaces for each peer instead of combining them into a single interface
+- **Dynamic Routing Support**: Designed to work with protocols like BGP, OSPF, or RIP for redundant routes
+- **Route Flexibility**: Overcomes WireGuard's AllowedIPs routing limitations by allowing overlapping network routes
+- **High Availability**: Interface isolation ensures that issues with one connection don't affect others
 
-This project is intended to be used inconjunction with dynamic routing protocols such as BGP, OSPF or RIP for creation & advertising of redundant routes. Should you not want that, you would need to configure your own static routes by creating your own routes by specifying custom PostUp in the configuration.
+## Dynamic Routing Integration
 
-This Python script generates WireGuard configuration files based on a template file located in the "template" folder. The main goal is to create WireGuard interfaces for each peer at each site. Users simply need to customize the `config.json` file to add the necessary information for each site, and the script will handle the rest, generating all the required configuration files.
+This tool is designed to work with dynamic routing protocols:
 
-Disclaimer: This is originally a simple script I developed for my personal use, but thought it could be useful to some. Use at your own risk!
+- BGP
+- OSPF
+- RIP
+
+The separate interface approach allows:
+
+- Multiple routes to the same subnet
+- OS-level routing decisions
+- Independent interface management
+- Route redundancy
 
 ## Features
 
-- For every peer in each site, a unique wireguard interface is created.
-- Supports IPv4 & IPv6 dual stack.
-- No NAT by default.
-- Customisable `[Interface]` and `[Peer]` entries, as well as endpoints, keepalive, mtu and pre/post up/down rules per site.
-- Predictable interface naming.
-- Automatically generates next available listening port for each interface starting from the port defined in `config.json`
-- Automatically generates public/private key pairs for each site and unique preshared keypairs for each site-peer pair.
-- Seperate file for private & public key pair for each site, and preshared-key pairs, allowing for key-rotation.
-- Table is set to off in template, routes for the interfaces is defined and created through UpDown rules
-- Configuration files for each site is stored in seperate folders within the `output` folder. This is to facilitate automation to deploy the configuration files through tools like Ansible.
-- Supports up to 200 sites (could be increased)
+- 🔀 Individual WireGuard interface per peer connection
+- 🌐 Full IPv4 & IPv6 dual-stack support
+- 🔑 Automatic key management and generation
+- 📝 Template-based configuration using Jinja2
+- 🎯 Site-specific customization options
+- 🔄 Persistent key storage
+- 🚦 Dynamic port allocation
+- 🛠️ Customizable up/down scripts
+- 📁 Organized output structure for automation tools
+- 🔍 Automatic peer discovery and configuration
 
-## Assumptions & Convention
+## Network Architecture
 
-These are the assumptions/conventions that has been made,
+### Default Network Scheme
 
-- Assumes each site uses a `10.X.0.0/16` network, where X is the site ID.
-- Uses a mesh overlay network in the `10.201.0.0/16` and `fdac:c9::/56` subnet.
-- Site IP: `10.201.X.1/24` & `fdac:c9::2/64`, where X is the site ID(hex in IPv6).
-- By default, the interface allows all traffic(`0.0.0.0/0` & `::/0`), routing is configured seperately.
-- Each site is assumed to peer with all other sites.
+- Overlay Network: `10.201.0.0/16` (IPv4) and `fdac:c9::/56` (IPv6)
+- Site Networks: `10.X.0.0/16` where X is the site ID
+- Site IPs:
+  - IPv4: `10.201.X.1/24` (X = site ID)
+  - IPv6: `fdac:c9:X::/64` (X = site ID in hex)
 
-Each site must have an ID defined in the `config.json` file. The WireGuard interface will take on the following format:
+### Interface Naming Convention
 
-- Interface name: `wgS.P_vI`, where S is the site ID, P is the peer ID, I is the network IP version.
+Format: `wgS.P_vI` where:
+
+- S: Source site ID
+- P: Peer site ID
+- I: IP version (v4/v6)
+
+Example: `wg1.2_v4` = Site 1 to Peer 2 IPv4 interface
+
+## Prerequisites
+
+- Python 3.x
+- Jinja2 templating engine
+- WireGuard installed on target systems
 
 ## Installation
 
-Clone the repository to your local machine:
+1. Clone this repository:
 
 ```bash
-git clone https://github.com/DrC0ns0le/wg-mesh-dynamic.git
+git clone https://github.com/DrC0ns0le/wg-mesh-dynamic-v2.git
+cd wg-mesh-dynamic-v2
 ```
+
+2. Install required dependencies:
+
+```bash
+pip install jinja2
+```
+
+## Configuration
+
+### config.json Structure
+
+```json
+{
+  "port": 51820,
+  "mtu": 1420,
+  "keepalive": 25,
+  "sites": [
+    {
+      "id": 1,
+      "name": "site1",
+      "endpoint": "site1.example.com",
+      "ip_version": "ds",
+      "local": "10.1.0.0",
+      "local_v6": "fdac:c9:1::",
+      "mtu": 1420,
+      "keepalive": 25,
+      "preup": ["custom-preup-command"],
+      "postup": ["custom-postup-command"],
+      "predown": ["custom-predown-command"],
+      "postdown": ["custom-postdown-command"],
+      "interface_custom": ["custom-interface-setting"],
+      "peer_custom": ["custom-peer-setting"]
+    }
+  ]
+}
+```
+
+### Configuration Files
+
+1. **config.json**: Main configuration file (required)
+   - Global settings (port, MTU, keepalive)
+   - Site-specific configurations
+   - Network preferences
+2. **data.json**: Key storage file (auto-generated)
+
+   - Stores WireGuard keys between runs
+   - Contains public/private keypairs
+   - Manages pre-shared keys
+   - Should be secured or deleted after deployment
+
+3. **templates/wireguard.tmpl**: Configuration template
+   - Jinja2 template for WireGuard configs
+   - Defines interface structure
+   - Contains routing rules
+   - Customizable for specific needs
 
 ## Usage
 
-0. `config.json.example` has been provided as an example. Copy this file to `config.json` and edit it.
-1. Customize the `config.json` file to include information about each site.
-2. Run the script:
+1. Create your configuration:
+
+```bash
+cp config.json.example config.json
+# Edit config.json with your site details
+```
+
+2. Generate configurations:
 
 ```bash
 python entry.py
 ```
 
-3. The generated configuration files will be stored in the `output` folder. Within the `output` folder, there will be a folder named after each site, containing the configuration files (`wgS.P.conf`) for each peer at that site, where S is the site ID and P is the peer ID.
-
-## Configuration Files
-
-### `config.json`
-
-Users can specify the following information for each site:
-
-- name (required)
-- id (required)
-- endpoint
-- keepalive
-- mtu
-- post/pre up/down
-- interface_custom
-- peer_custom
-- local
-- local_v6
-
-You may refer to config.json.example
-
-### `data.json`
-
-This file stores all generated keys by the script to persist them between runs. You should treat this file like a password file. For security reasons, this file may be deleted after generating the configurations
-
-### `templates/wireguard.tmpl`
-
-This is the template file used for generating the WireGuard configurations. It is rendered using Jinja based on values from `data.json`. UpDown rules for adding routes and creating iptable forwarding rules are included here. Customize this template file according to your requirements.
-
-## Example
-
-Suppose we have three sites:
-
-- Site 1 (Site Name: siteA, Site ID: 0, Dual Stack)
-  - Peer 1 (Site ID: 1)
-  - Peer 2 (Site ID: 2)
-- Site 2 (Site Name: siteB, Site ID: 1, V4 Only)
-  - Peer 1 (Site ID: 0)
-  - Peer 2 (Site ID: 2)
-- Site 3 (Site Name: siteC, Site ID: 2, Dual Stack)
-  - Peer 1 (Site ID: 0)
-  - Peer 2 (Site ID: 1)
-
-After customizing the `config.json` file and running the script, the generated configuration files will be organized as follows:
+3. Find your configuration files in the `output` directory:
 
 ```
 output/
-│
-├── siteA/
-│   ├── wg0.1_v4.conf
-│   ├── wg0.1_v6.conf
-│   └── wg0.2_v4.conf
-│
-├── siteB/
-│   ├── wg1.0_v4.conf
-│   ├── wg1.0_v6.conf
-│   └── wg1.2_v4.conf
-│
-└── siteC/
-    ├── wg2.0_v4.conf
-    └── wg2.1_v4.conf
-
+├── site1/
+│   ├── wg1.2_v4.conf
+│   ├── wg1.2_v6.conf
+│   ├── wg1.3_v4.conf
+│   └── wg1.3_v6.conf
+...
 ```
+
+## Security Considerations
+
+- Pre-shared keys are automatically generated for all peer connections
+- Private keys are stored in `data.json` - secure appropriately
+- Consider using environment variables for sensitive data
+- Delete `data.json` after deployment if desired
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Port Conflicts**
+
+   - Check base port availability
+   - Verify port range doesn't overlap
+   - Ensure unique ports per interface
+
+2. **Routing Issues**
+
+   - Verify routing protocol configuration
+   - Check interface UP/DOWN states
+   - Confirm IP forwarding is enabled
+   - Validate firewall rules
+
+3. **Key Management**
+   - Backup `data.json` before modifications
+   - Verify key permissions
+   - Check for key rotation needs
 
 ## Contributing
 
-Contributions are welcome! If you have any suggestions, feature requests, or bug reports, please open an issue or submit a pull request.
+Contributions are welcome! Please feel free to submit a Pull Request. Areas of interest:
+
+- Additional routing protocol integration
+- Enhanced templating options
+- Security improvements
+- Documentation updates
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgments
+
+- WireGuard® is a registered trademark of Jason A. Donenfeld
+- Thanks to the WireGuard and Python communities
+- Part of my University Final Year Project
