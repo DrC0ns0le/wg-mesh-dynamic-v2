@@ -1,0 +1,2 @@
+cryptography==3.4.8
+Jinja2==3.0.3

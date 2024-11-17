@@ -1,0 +1,59 @@
+# IP{{ ip_version }} interface for {{ peer_name }}
+[Interface]
+Table = off
+PrivateKey = {{ private_key }}
+
+{% if preup is not none %}{% for val in preup -%}
+PreUp = {{ val }}
+{% endfor %}{% endif -%}
+
+
+{% if ip_version == "v4" %}
+PostUp = ip a add {{ site_subnet }}4/32 dev lo || echo .
+PostUp = ip route add {{ peer_ip[:-1] }}4/32 dev {{ interface_name }} src {{ site_subnet }}4 || echo .
+PostUp = iptables -I FORWARD -i {{ interface_name }} -j ACCEPT
+{% elif ip_version == "v6" %}
+PostUp= ip a add {{ site_subnet }}6/32 dev lo || echo .
+PostUp = ip route add {{ peer_ip[:-1] }}6/32 dev {{ interface_name }} src {{ site_subnet }}6 || echo .
+PostUp = ip6tables -I FORWARD -i {{ interface_name }} -j ACCEPT
+{% endif %}
+
+{%- if postup is not none %}{% for val in postup %}
+PostUp = {{ val }}
+{%- endfor %}{% endif %}
+
+{% if predown is not none %}{% for val in predown -%}
+PreDown = {{ val }}
+{% endfor %}{% endif -%}
+
+{% if ip_version == "v4" %}
+PostDown = iptables -D FORWARD -i {{ interface_name }} -j ACCEPT
+{% elif ip_version == "v6" %}
+PostDown = ip6tables -D FORWARD -i {{ interface_name }} -j ACCEPT
+{% endif %}
+
+{%- if postdown is not none %}{% for val in postdown %}
+PostDown = {{ val }}
+{%- endfor %}{% endif %}
+
+MTU = {{ mtu }}
+{% if site_endpoint is not none -%}
+ListenPort = {{ listen_port }}
+{% endif -%}
+
+
+{%- if interface_custom is not none %}{% for val in interface_custom %}
+{{ val }}
+{%- endfor %}{% endif %}
+
+[Peer]
+PublicKey = {{ peer_public }}
+PresharedKey = {{ preshared_key }}
+{% if peer_endpoint is not none -%}
+Endpoint = {{ peer_endpoint }}:{{ peer_port }}
+{% endif -%}
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = {{ keep_alive }}
+{%- if peer_custom is not none %}{% for val in peer_custom %}
+{{ val }}
+{%- endfor %}{% endif %}

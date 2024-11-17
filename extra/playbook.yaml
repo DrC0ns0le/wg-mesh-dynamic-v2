@@ -1,0 +1,42 @@
+- name: Deploy wg.conf
+  hosts: all
+  gather_facts: true
+  tasks:
+    - name: Loop through host groups
+      debug:
+        msg: "Hosts in group {{ item }}: {{ groups[item] }}"
+      with_items: "{{ group_names }}"
+
+    - name: Copy file with owner and permissions
+      become: true
+      vars:
+        ansible_become_password: ""
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../output/{{ group_names[0] }}/"
+        dest: "/etc/wireguard/staging"
+        owner: root
+        group: root
+        mode: '0644'
+      loop: "{{ group_names }}"
+
+    - name: Copy file with owner and permissions
+      become: true
+      vars:
+        ansible_become_password: ""
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/scripts/deploy.sh"
+        dest: "/etc/wireguard/deploy.sh"
+        owner: root
+        group: root
+        mode: '0744'
+      with_items: "{{ group_names }}"
+
+    - name: Run deploy script
+      become: true
+      vars:
+        ansible_become_password: ""
+      ansible.builtin.command:
+        cmd: "/bin/bash /etc/wireguard/deploy.sh &"
+      args:
+        chdir: /etc/wireguard
+      with_items: "{{ group_names }}"
