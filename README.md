@@ -133,7 +133,7 @@ Each site in the `sites` array can have the following options:
   
   // Optional: Custom WireGuard peer settings
   "peer_custom": [
-    "PresharedKey = Base64Key=="
+    "RouteMetric = 100"
   ]
 }
 ```
