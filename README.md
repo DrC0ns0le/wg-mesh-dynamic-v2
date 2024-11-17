@@ -74,32 +74,128 @@ pip install jinja2
 
 ## Configuration
 
-### config.json Structure
+### config.json Structure and Options
+
+The configuration file consists of global settings and a list of site configurations.
+
+#### Global Settings
 
 ```json
 {
-  "port": 51820,
-  "mtu": 1420,
-  "keepalive": 25,
-  "sites": [
-    {
-      "id": 1,
-      "name": "site1",
-      "endpoint": "site1.example.com",
-      "ip_version": "ds",
-      "local": "10.1.0.0",
-      "local_v6": "fdac:c9:1::",
-      "mtu": 1420,
-      "keepalive": 25,
-      "preup": ["custom-preup-command"],
-      "postup": ["custom-postup-command"],
-      "predown": ["custom-predown-command"],
-      "postdown": ["custom-postdown-command"],
-      "interface_custom": ["custom-interface-setting"],
-      "peer_custom": ["custom-peer-setting"]
-    }
+  "port": 51820,        // Base port number for WireGuard interfaces
+  "mtu": 1420,          // Default Maximum Transmission Unit
+  "keepalive": 25,      // Default persistent keepalive interval in seconds
+  "sites": []           // Array of site configurations
+}
+```
+
+#### Site Configuration Options
+
+Each site in the `sites` array can have the following options:
+
+```json
+{
+  "id": 1,                    // Required: Unique numerical identifier for the site
+  "name": "site1",            // Required: Site name used for output directory
+  "endpoint": "site1.example.com",  // Optional: Public endpoint domain/IP
+  "ip_version": "ds",         // Optional: IP version preference ("v4", "v6", or "ds" for dual-stack)
+  "local": "10.1.0.0",       // Optional: Override default local IPv4 network
+  "local_v6": "fdac:c9:1::", // Optional: Override default local IPv6 network
+  "port": 51820,             // Optional: Override default base port
+  "mtu": 1420,               // Optional: Override default MTU
+  "keepalive": 25,           // Optional: Override default keepalive interval
+  
+  // Optional: Commands to run before interface is brought up
+  "preup": [
+    "iptables -A FORWARD -i %i -j ACCEPT"
+  ],
+  
+  // Optional: Commands to run after interface is brought up
+  "postup": [
+    "ip route add 10.0.0.0/8 via 10.201.1.1"
+  ],
+  
+  // Optional: Commands to run before interface is taken down
+  "predown": [
+    "iptables -D FORWARD -i %i -j ACCEPT"
+  ],
+  
+  // Optional: Commands to run after interface is taken down
+  "postdown": [
+    "ip route del 10.0.0.0/8 via 10.201.1.1"
+  ],
+  
+  // Optional: Custom WireGuard interface settings
+  "interface_custom": [
+    "Table = 200",
+    "FwMark = 0x200"
+  ],
+  
+  // Optional: Custom WireGuard peer settings
+  "peer_custom": [
+    "PresharedKey = Base64Key=="
   ]
 }
+```
+
+#### Option Details
+
+- **id** (Required)
+  - Unique numerical identifier for the site
+  - Used in interface naming and IP address generation
+  - Must be unique across all sites
+
+- **name** (Required)
+  - Human-readable site identifier
+  - Used for output directory naming
+  - Should be filesystem-safe (no spaces or special characters)
+
+- **endpoint** (Optional)
+  - Public endpoint for the site
+  - Can be domain name or IP address
+  - Used by peers to establish connection
+  - If not specified, the interface will only listen (useful for dynamic IP sites)
+
+- **ip_version** (Optional)
+  - Controls IP protocol version for the site
+  - Values:
+    - `"ds"`: Dual stack - both IPv4 and IPv6 (default)
+    - `"v4"`: IPv4 only
+    - `"v6"`: IPv6 only
+
+- **local**/**local_v6** (Optional)
+  - Override default local network addressing
+  - Default IPv4: `10.{site_id}.0.0`
+  - Default IPv6: `fdac:c9:{site_id:x}::`
+
+- **port** (Optional)
+  - Override global base port for this site
+  - Each peer interface will increment from this base
+
+- **mtu** (Optional)
+  - Override global MTU setting for this site
+  - Useful for sites with different network conditions
+  - IPv6 automatically subtracts 20 from MTU
+
+- **keepalive** (Optional)
+  - Override global keepalive interval for this site
+  - Time in seconds between keepalive packets
+  - Used to maintain NAT mappings
+
+- **preup**/**postup**/**predown**/**postdown** (Optional)
+  - Arrays of commands to run at interface state changes
+  - Useful for custom routing, firewall rules, or scripts
+  - Supports WireGuard variables like %i (interface name)
+
+- **interface_custom** (Optional)
+  - Array of custom WireGuard interface settings
+  - Added directly to [Interface] section
+  - Useful for advanced configurations
+
+- **peer_custom** (Optional)
+  - Array of custom WireGuard peer settings
+  - Added directly to [Peer] section
+  - Useful for advanced configurations
 ```
 
 ### Configuration Files
@@ -108,8 +204,8 @@ pip install jinja2
    - Global settings (port, MTU, keepalive)
    - Site-specific configurations
    - Network preferences
+   
 2. **data.json**: Key storage file (auto-generated)
-
    - Stores WireGuard keys between runs
    - Contains public/private keypairs
    - Manages pre-shared keys
