@@ -11,13 +11,7 @@ A Python-based tool for generating WireGuard mesh network configurations with su
 
 ## Dynamic Routing Integration
 
-This tool is designed to work with dynamic routing protocols:
-
-- BGP
-- OSPF
-- RIP
-
-The separate interface approach allows:
+This tool is designed to work with dynamic routing protocols by seperating the interface so as to allow:
 
 - Multiple routes to the same subnet
 - OS-level routing decisions
