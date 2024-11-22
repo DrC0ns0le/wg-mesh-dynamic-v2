@@ -11,12 +11,20 @@ PreUp = {{ val }}
 {% if ip_version == "v4" %}
 PostUp = ip a add {{ site_subnet }}4/32 dev lo || echo .
 PostUp = ip route add {{ peer_ip[:-1] }}4/32 dev {{ interface_name }} src {{ site_subnet }}4 || echo .
-PostUp = iptables -I FORWARD -i {{ interface_name }} -j ACCEPT
 {% elif ip_version == "v6" %}
 PostUp= ip a add {{ site_subnet }}6/32 dev lo || echo .
 PostUp = ip route add {{ peer_ip[:-1] }}6/32 dev {{ interface_name }} src {{ site_subnet }}6 || echo .
-PostUp = ip6tables -I FORWARD -i {{ interface_name }} -j ACCEPT
 {% endif %}
+
+# Forward chain rules for IPv4 & IPv6
+PostUp = iptables -I FORWARD -i {{ interface_name }} -j ACCEPT
+PostUp = ip6tables -I FORWARD -i {{ interface_name }} -j ACCEPT
+PostUp = iptables -I FORWARD -o {{ interface_name }} -j ACCEPT
+PostUp = ip6tables -I FORWARD -o {{ interface_name }} -j ACCEPT
+
+# Input chain rules for IPv4 & IPv6
+PostUp = iptables -I INPUT -i {{ interface_name }} -j ACCEPT
+PostUp = ip6tables -I INPUT -i {{ interface_name }} -j ACCEPT
 
 {%- if postup is not none %}{% for val in postup %}
 PostUp = {{ val }}
@@ -26,11 +34,15 @@ PostUp = {{ val }}
 PreDown = {{ val }}
 {% endfor %}{% endif -%}
 
-{% if ip_version == "v4" %}
+# Forward chain cleanup
 PostDown = iptables -D FORWARD -i {{ interface_name }} -j ACCEPT
-{% elif ip_version == "v6" %}
 PostDown = ip6tables -D FORWARD -i {{ interface_name }} -j ACCEPT
-{% endif %}
+PostDown = iptables -D FORWARD -o {{ interface_name }} -j ACCEPT
+PostDown = ip6tables -D FORWARD -o {{ interface_name }} -j ACCEPT
+
+# Input chain cleanup
+PostDown = iptables -D INPUT -i {{ interface_name }} -j ACCEPT
+PostDown = ip6tables -D INPUT -i {{ interface_name }} -j ACCEPT
 
 {%- if postdown is not none %}{% for val in postdown %}
 PostDown = {{ val }}
