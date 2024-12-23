@@ -33,9 +33,9 @@ This tool is designed to work with dynamic routing protocols by seperating the i
 
 ## Must Read
 
-Understand that the script makes an assumption of the network that is used, and is fairly "wasteful" of the IPv4 space. You are advised to study the template and generated configuration file to ensure that this script is working the way you expect it to. By default, it assume the router IP address is already configured as per the convention.
+Understand that the script makes an assumption of the network that is used, and is fairly "wasteful" of the IPv4 space. You are advised to study the template and generated configuration file to ensure that this script is working the way you expect it to. By default, it assumes the router IP address is already configured as per the convention.
 
-By default, the script does NOT add the necessary 10.201.X.1 route to the other sites, except for 10.201.X.4/6(depending on the ip version) to the loopback interface for purposes of heartbeat check.(Example script provided extra/scripts/watchdog.sh). The expectation is that, based on the tunnel that is performing the best, you would have a seperate script/application to manage the route. (ie. ip route add 10.201.{remote}.0/24 dev preferredInterface scope link src 10.201.{local}.1)
+The script's routing configuration is intentionally minimal. By default, the script does NOT add the necessary 10.201.X.0/24 route to the other sites, except for 10.201.X.(4/6)/32 route to the loopback interface for purposes of heartbeat check.(Example script provided extra/scripts/watchdog.sh). The expectation is that, based on the tunnel that is performing the best, you would have a seperate script/application to manage the route. (ie. ip route add 10.201.{remote}.0/24 dev preferredInterface scope link src 10.201.{local}.1)
 
 If you prefer a simpler implementation, or simply do not need dual tunnel/endpoint, you may want to consider using v1 of this project, which only supports single tunnel/endpoint. It does not use additional 10.201.X.4/6 addresing, and 10.201.X.1/24 route is added for you.
 
