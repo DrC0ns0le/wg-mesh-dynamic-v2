@@ -26,10 +26,18 @@ This tool is designed to work with dynamic routing protocols by seperating the i
 - 📝 Template-based configuration using Jinja2
 - 🎯 Site-specific customization options
 - 🔄 Persistent key storage
-- 🚦 Dynamic port allocation
+- 🚦 Automatic port allocation
 - 🛠️ Customizable up/down scripts
 - 📁 Organized output structure for automation tools
 - 🔍 Automatic peer discovery and configuration
+
+## Must Read
+
+Understand that the script makes an assumption of the network that is used, and is fairly "wasteful" of the IPv4 space. You are advised to study the template and generated configuration file to ensure that this script is working the way you expect it to. By default, it assume the router IP address is already configured as per the convention.
+
+By default, the script does NOT add the necessary 10.201.X.1 route to the other sites, except for 10.201.X.4/6(depending on the ip version) to the loopback interface for purposes of heartbeat check.(Example script provided extra/scripts/watchdog.sh). The expectation is that, based on the tunnel that is performing the best, you would have a seperate script/application to manage the route. (ie. ip route add 10.201.{remote}.0/24 dev preferredInterface scope link src 10.201.{local}.1)
+
+If you prefer a simpler implementation, or simply do not need dual tunnel/endpoint, you may want to consider using v1 of this project, which only supports single tunnel/endpoint. It does not use additional 10.201.X.4/6 addresing, and 10.201.X.1/24 route is added for you.
 
 ## Network Architecture
 
@@ -37,9 +45,9 @@ This tool is designed to work with dynamic routing protocols by seperating the i
 
 - Overlay Network: `10.201.0.0/16` (IPv4) and `fdac:c9::/56` (IPv6)
 - Site Networks: `10.X.0.0/16` where X is the site ID
-- Site IPs:
+- Site Router IP:
   - IPv4: `10.201.X.1/24` (X = site ID)
-  - IPv6: `fdac:c9:X::/64` (X = site ID in hex)
+  - IPv6: `fdac:c9:X::2/64` (X = site ID in hex)
 
 ### Interface Naming Convention
 
@@ -82,10 +90,10 @@ The configuration file consists of global settings and a list of site configurat
 
 ```json
 {
-  "port": 51820,        // Base port number for WireGuard interfaces
-  "mtu": 1420,          // Default Maximum Transmission Unit
-  "keepalive": 25,      // Default persistent keepalive interval in seconds
-  "sites": []           // Array of site configurations
+  "port": 51820, // Base port number for WireGuard interfaces
+  "mtu": 1420, // Default Maximum Transmission Unit
+  "keepalive": 25, // Default persistent keepalive interval in seconds
+  "sites": [] // Array of site configurations
 }
 ```
 
@@ -95,68 +103,59 @@ Each site in the `sites` array can have the following options:
 
 ```json
 {
-  "id": 1,                    // Required: Unique numerical identifier for the site
-  "name": "site1",            // Required: Site name used for output directory
-  "endpoint": "site1.example.com",  // Optional: Public endpoint domain/IP
-  "ip_version": "ds",         // Optional: IP version preference ("v4", "v6", or "ds" for dual-stack)
-  "local": "10.1.0.0",       // Optional: Override default local IPv4 network
+  "id": 1, // Required: Unique numerical identifier for the site
+  "name": "site1", // Required: Site name used for output directory
+  "endpoint": "site1.example.com", // Optional: Public endpoint domain/IP
+  "ip_version": "ds", // Optional: IP version preference ("v4", "v6", or "ds" for dual-stack)
+  "local": "10.1.0.0", // Optional: Override default local IPv4 network
   "local_v6": "fdac:c9:1::", // Optional: Override default local IPv6 network
-  "port": 51820,             // Optional: Override default base port
-  "mtu": 1420,               // Optional: Override default MTU
-  "keepalive": 25,           // Optional: Override default keepalive interval
-  
+  "port": 51820, // Optional: Override default base port
+  "mtu": 1420, // Optional: Override default MTU
+  "keepalive": 25, // Optional: Override default keepalive interval
+
   // Optional: Commands to run before interface is brought up
-  "preup": [
-    "iptables -A FORWARD -i %i -j ACCEPT"
-  ],
-  
+  "preup": ["iptables -A FORWARD -i %i -j ACCEPT"],
+
   // Optional: Commands to run after interface is brought up
-  "postup": [
-    "ip route add 10.0.0.0/8 via 10.201.1.1"
-  ],
-  
+  "postup": ["ip route add 10.0.0.0/8 via 10.201.1.1"],
+
   // Optional: Commands to run before interface is taken down
-  "predown": [
-    "iptables -D FORWARD -i %i -j ACCEPT"
-  ],
-  
+  "predown": ["iptables -D FORWARD -i %i -j ACCEPT"],
+
   // Optional: Commands to run after interface is taken down
-  "postdown": [
-    "ip route del 10.0.0.0/8 via 10.201.1.1"
-  ],
-  
+  "postdown": ["ip route del 10.0.0.0/8 via 10.201.1.1"],
+
   // Optional: Custom WireGuard interface settings
-  "interface_custom": [
-    "Table = 200",
-    "FwMark = 0x200"
-  ],
-  
+  "interface_custom": ["Table = 200", "FwMark = 0x200"],
+
   // Optional: Custom WireGuard peer settings
-  "peer_custom": [
-    "RouteMetric = 100"
-  ]
+  "peer_custom": ["RouteMetric = 100"]
 }
 ```
 
 #### Option Details
 
 - **id** (Required)
+
   - Unique numerical identifier for the site
   - Used in interface naming and IP address generation
   - Must be unique across all sites
 
 - **name** (Required)
+
   - Human-readable site identifier
   - Used for output directory naming
   - Should be filesystem-safe (no spaces or special characters)
 
 - **endpoint** (Optional)
+
   - Public endpoint for the site
   - Can be domain name or IP address
   - Used by peers to establish connection
   - If not specified, the interface will only listen (useful for dynamic IP sites)
 
 - **ip_version** (Optional)
+
   - Controls IP protocol version for the site
   - Values:
     - `"ds"`: Dual stack - both IPv4 and IPv6 (default)
@@ -164,30 +163,36 @@ Each site in the `sites` array can have the following options:
     - `"v6"`: IPv6 only
 
 - **local**/**local_v6** (Optional)
+
   - Override default local network addressing
   - Default IPv4: `10.{site_id}.0.0`
   - Default IPv6: `fdac:c9:{site_id:x}::`
 
 - **port** (Optional)
+
   - Override global base port for this site
   - Each peer interface will increment from this base
 
 - **mtu** (Optional)
+
   - Override global MTU setting for this site
   - Useful for sites with different network conditions
   - IPv6 automatically subtracts 20 from MTU
 
 - **keepalive** (Optional)
+
   - Override global keepalive interval for this site
   - Time in seconds between keepalive packets
   - Used to maintain NAT mappings
 
 - **preup**/**postup**/**predown**/**postdown** (Optional)
+
   - Arrays of commands to run at interface state changes
   - Useful for custom routing, firewall rules, or scripts
   - Supports WireGuard variables like %i (interface name)
 
 - **interface_custom** (Optional)
+
   - Array of custom WireGuard interface settings
   - Added directly to [Interface] section
   - Useful for advanced configurations
@@ -196,7 +201,8 @@ Each site in the `sites` array can have the following options:
   - Array of custom WireGuard peer settings
   - Added directly to [Peer] section
   - Useful for advanced configurations
-```
+
+````
 
 ### Configuration Files
 
@@ -204,7 +210,7 @@ Each site in the `sites` array can have the following options:
    - Global settings (port, MTU, keepalive)
    - Site-specific configurations
    - Network preferences
-   
+
 2. **data.json**: Key storage file (auto-generated)
    - Stores WireGuard keys between runs
    - Contains public/private keypairs
@@ -224,7 +230,7 @@ Each site in the `sites` array can have the following options:
 ```bash
 cp config.json.example config.json
 # Edit config.json with your site details
-```
+````
 
 2. Generate configurations:
 
@@ -275,12 +281,7 @@ output/
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request. Areas of interest:
-
-- Additional routing protocol integration
-- Enhanced templating options
-- Security improvements
-- Documentation updates
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
